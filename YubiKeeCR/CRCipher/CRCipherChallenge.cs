@@ -4,6 +4,7 @@ using KeePassLib.Utility;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 
 namespace YubiKeeCR
@@ -22,15 +23,12 @@ namespace YubiKeeCR
 		protected CryptoStream m_AesStream;
 		private byte[] pbKey32;
 		private byte[] pbIV16;
-		private YubiSlot m_YubiSlot;
-		private int m_Iterations = 10000;
 
 		private readonly byte[] DEADBEEF = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
 
 		public CRCipherChallenge(Stream sbaseStream, bool bWriting) : base(sbaseStream, bWriting)
 		{
 			m_Writing = bWriting;
-			m_YubiSlot = YubiSlot.SLOT2;
 
 			Aes aes = Aes.Create();
 			aes.Padding = PaddingMode.PKCS7;
@@ -81,24 +79,41 @@ namespace YubiKeeCR
 			BinaryReader br = new BinaryReader(m_UpStream); 
 
 			byte[] deadbeef = br.ReadBytes(4); // 0xDEADBEEF - sanity check and also make it easier to find this section when reading the database with an hex editor
-			Debug.Assert(deadbeef == DEADBEEF);
+
+			bool validDeadbeef = deadbeef.SequenceEqual(DEADBEEF);
+			Debug.Assert(validDeadbeef);
+
+			if (!validDeadbeef) //Should display this when in Release?
+			{
+				MessageService.ShowInfo($"DEADBEEF FAILED:\n" +
+					$"GOT\t\t{BitConverter.ToString(deadbeef)}\n" +
+					$"EXPECTED\t\t{BitConverter.ToString(DEADBEEF)}\n" +
+					$"BOOL\t\t{validDeadbeef}");
+			}
 
 			ushort version = (ushort)br.ReadUInt16();
-			m_YubiSlot = (YubiSlot)br.ReadByte();
+			Configuration.YubiSlot = (YubiSlot)br.ReadByte();
 			int challengeLength = (int)br.ReadInt32();
 			byte[] challenge = br.ReadBytes(challengeLength); 
 
 			int saltLength = (int)br.ReadInt32(); 
 			byte[] salt = br.ReadBytes(saltLength);
 
-			int iterations = (int)br.ReadInt32();
+			Configuration.Iterations = (int)br.ReadInt32();
+
+#if DEBUG
+			MessageService.ShowInfo($"READ DATABASE CONFIG:\n" +
+				$"Configuration.YubiSlot: {Configuration.YubiSlot}\n" +
+				$"Configuration.Iterations: {Configuration.Iterations}"
+				);
+#endif
 
 #if DEBUG
 			byte[] response = challenge;
 #else
-			m_Yubi.ChallengeResponse(m_YubiSlot, challenge, out byte[] response);
+			m_Yubi.ChallengeResponse(Configuration.YubiSlot, challenge, out byte[] response);
 #endif
-			Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(response, salt, iterations);
+			Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(response, salt, Configuration.Iterations);
 
 			pbKey32 = rfc.GetBytes(32);
 			pbIV16 = rfc.GetBytes(16);
@@ -114,7 +129,7 @@ namespace YubiKeeCR
 
 			bw.Write((ushort)0); //version
 
-			bw.Write((byte)m_YubiSlot); //Yubikey Slot
+			bw.Write((byte)Configuration.YubiSlot); //Yubikey Slot
 
 #if DEBUG
 			byte[] challenge = Enumerable.Repeat((byte)0xFF, (int)ChallengeKeyLength).ToArray(); //same as deadbeed
@@ -132,14 +147,14 @@ namespace YubiKeeCR
 			bw.Write((int)salt.Length); //salt length
 			bw.Write(salt); //salt
 
-			bw.Write((int)m_Iterations); // rfc iteraction number
+			bw.Write((int)Configuration.Iterations); // rfc iteraction number
 
 #if DEBUG
 			byte[] response = challenge;
 #else
-			m_Yubi.ChallengeResponse(m_YubiSlot, challenge, out byte[] response);
+			m_Yubi.ChallengeResponse(Configuration.YubiSlot, challenge, out byte[] response);
 #endif
-			Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(response, salt, m_Iterations);
+			Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(response, salt, Configuration.Iterations);
 
 			pbKey32 = rfc.GetBytes(32);
 			pbIV16 = rfc.GetBytes(16);

@@ -38,6 +38,8 @@ namespace YubiKeeCR
 			0xAC, 0x35, 0xBD, 0x80, 0xAB, 0x4F, 0x11, 0xED
 		};
 
+		public static readonly PwUuid CipherUuid2 = new PwUuid(Level2CipherUuidBytes);
+
 		public CRCipherEngine()
 		{
 			m_uuidCipher = new PwUuid(Level2CipherUuidBytes);
