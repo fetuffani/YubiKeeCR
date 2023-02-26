@@ -1,0 +1,3 @@
+## The KeePass assembly must be inside the project directory.
+## Github automated builds will download it automatically
+KeePass.exe

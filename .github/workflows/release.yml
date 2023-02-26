@@ -1,0 +1,54 @@
+name: compile for release action
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  compile:
+    name: compile for release job
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: setup-msbuild
+      uses: microsoft/setup-msbuild@v1
+      
+    - name: download-keepass
+      uses: gamedev-thingy/Download-Extract@done
+      with:
+        url: https://sonik.dl.sourceforge.net/project/keepass/KeePass%202.x/2.53.1/KeePass-2.53.1.zip
+        destination: ./YubiKeeCR/
+        ZIPname: KeePass-2.53.1.zip
+    
+    - name: run-msbuild
+      run: msbuild YubiKeeCR.sln /p:Configuration=Release /t:YubiKeeCR
+    
+    - name: zip-package
+      run: 7z a Release.zip .\YubiKeeCR\bin\Release\*
+    
+    - name: upload-release
+      uses: actions/upload-artifact@v3
+      env:
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        name: Releases
+        path: Release.zip
+
+    - name: Download builds
+      uses: actions/download-artifact@v3
+      with:
+        name: Releases
+
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        name: Releases
+        tag_name: Releases
+        prerelease: true
+        files: Release.zip
