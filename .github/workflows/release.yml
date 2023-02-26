@@ -1,4 +1,4 @@
-name: compile for release action
+name: automatic release
 
 on:
   push:
@@ -8,11 +8,12 @@ on:
 
 jobs:
   compile:
-    name: compile for release job
+    name: compile job
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - name: checkout
+      uses: actions/checkout@v2
     
     - name: setup-msbuild
       uses: microsoft/setup-msbuild@v1
@@ -27,7 +28,7 @@ jobs:
     - name: run-msbuild
       run: msbuild YubiKeeCR.sln /p:Configuration=Release /t:YubiKeeCR
     
-    - name: zip-package
+    - name: unzip-package
       run: 7z a Release.zip .\YubiKeeCR\bin\Release\*
     
     - name: upload-release
