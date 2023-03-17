@@ -69,6 +69,12 @@
     <Compile Include="KeyProvider.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RecoveryDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RecoveryDialog.Designer.cs">
+      <DependentUpon>RecoveryDialog.cs</DependentUpon>
+    </Compile>
     <Compile Include="Settings.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -109,6 +115,9 @@
     <Content Include="KeePass.exe" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="RecoveryDialog.resx">
+      <DependentUpon>RecoveryDialog.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Settings.resx">
       <DependentUpon>Settings.cs</DependentUpon>
     </EmbeddedResource>

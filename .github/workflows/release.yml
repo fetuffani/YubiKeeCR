@@ -28,7 +28,7 @@ jobs:
     - name: run-msbuild
       run: msbuild YubiKeeCR.sln /p:Configuration=Release /t:YubiKeeCR
     
-    - name: unzip-package
+    - name: zip-package
       run: 7z a Release.zip .\YubiKeeCR\bin\Release\*
     
     - name: upload-release

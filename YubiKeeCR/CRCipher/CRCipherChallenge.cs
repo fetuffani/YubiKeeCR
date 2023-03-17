@@ -1,4 +1,5 @@
 ﻿using KeePassLib.Cryptography;
+using KeePassLib.Security;
 using KeePassLib.Utility;
 
 using System;
@@ -6,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Windows.Forms;
 
 namespace YubiKeeCR
 {
@@ -25,6 +27,10 @@ namespace YubiKeeCR
 		private byte[] pbIV16;
 
 		private readonly byte[] DEADBEEF = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
+
+		private bool m_RecoveryMode = false;
+
+		private byte[] m_SecretKey = null;
 
 		public CRCipherChallenge(Stream sbaseStream, bool bWriting) : base(sbaseStream, bWriting)
 		{
@@ -66,10 +72,47 @@ namespace YubiKeeCR
 					"Check if your Yubikey is properly inserted or if your plugin installation is corrupted.\n\nTry again?",
 					"Failed to initialize Yubikey Wrapper.",
 					true,
-					System.Windows.Forms.MessageBoxIcon.Warning
+					MessageBoxIcon.Warning
 				);
 
-				if (!retry) throw new Exception("Failed Initializing Yubikey Wrapper");
+				if (retry) continue;
+
+				if (!m_bWriting) //Recovery mode in read mode only
+				{
+					m_RecoveryMode = MessageService.AskYesNo(
+						"Do you want to try the recovery mode?\n\nUse this option if you have your Yubikey challenge secret key stored somewhere else.\n\nWARNING: Avoid using this option in unsafe environments or on devices you don't trust as it may be prone to security issues",
+						"Try Recovery mode?",
+						false,
+						MessageBoxIcon.Question
+					);
+
+					if (m_RecoveryMode)
+					{
+						RecoveryDialog rd = new RecoveryDialog();
+						DialogResult result = rd.ShowDialog();
+
+						if (result == DialogResult.Cancel)
+						{
+							throw new Exception("Recovery mode aborted.");
+						}
+						else if (result == DialogResult.OK)
+						{
+							//rd.Secret.CopyTo(m_SecretKey, 0);
+							m_SecretKey = rd.Secret;
+							//MemUtil.ZeroByteArray(m_SecretKey);
+							//rd.Dispose();
+							break;
+						}
+					}
+					else
+					{
+						throw new Exception("Recovery mode aborted.");
+					}
+				}
+				else
+				{
+					throw new Exception("Failed Initializing Yubikey Wrapper.");
+				}
 			}
 		}
 
@@ -111,9 +154,23 @@ namespace YubiKeeCR
 #if DEBUG
 			byte[] response = challenge;
 #else
-			m_Yubi.ChallengeResponse(Configuration.YubiSlot, challenge, out byte[] response);
+			byte[] response;
+			if (m_RecoveryMode)
+			{
+				HMACSHA1 hmacsha1 = new HMACSHA1(m_SecretKey);
+				response = hmacsha1.ComputeHash(challenge.Take(Math.Min(63, challengeLength)).ToArray());
+				hmacsha1.Clear();
+				hmacsha1.Dispose();
+				MemUtil.ZeroByteArray(m_SecretKey);
+			}
+			else
+			{
+				m_Yubi.ChallengeResponse(Configuration.YubiSlot, challenge, out response);
+			}
 #endif
 			Rfc2898DeriveBytes rfc = new Rfc2898DeriveBytes(response, salt, Configuration.Iterations);
+			MemUtil.ZeroByteArray(response);
+			MemUtil.ZeroByteArray(salt);
 
 			pbKey32 = rfc.GetBytes(32);
 			pbIV16 = rfc.GetBytes(16);
@@ -123,6 +180,7 @@ namespace YubiKeeCR
 
 		private void InitWrite()
 		{
+			MessageBox.Show("write mode");
 			BinaryWriter bw = new BinaryWriter(m_UpStream);
 
 			bw.Write(DEADBEEF); //placeholder to easily find this section in the hex file editor
