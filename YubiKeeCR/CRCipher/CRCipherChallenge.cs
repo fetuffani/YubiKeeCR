@@ -180,7 +180,6 @@ namespace YubiKeeCR
 
 		private void InitWrite()
 		{
-			MessageBox.Show("write mode");
 			BinaryWriter bw = new BinaryWriter(m_UpStream);
 
 			bw.Write(DEADBEEF); //placeholder to easily find this section in the hex file editor
